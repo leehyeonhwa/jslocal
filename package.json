@@ -1,0 +1,38 @@
+{
+  "name": "jslocal",
+  "version": "0.1.0",
+  "description": "Tibero 한글 인코딩 진단 도구 및 Node.js 연동 예제",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "tb-encoding-doctor": "bin/tb-encoding-doctor.js"
+  },
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "bin",
+    "docs",
+    "README.md"
+  ],
+  "scripts": {
+    "doctor": "node bin/tb-encoding-doctor.js",
+    "test": "node --test"
+  },
+  "optionalDependencies": {
+    "odbc": "^2.4.9"
+  },
+  "keywords": [
+    "tibero",
+    "encoding",
+    "cp949",
+    "mswin949",
+    "euc-kr",
+    "hangul",
+    "korean"
+  ]
+}
