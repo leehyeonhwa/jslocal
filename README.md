@@ -288,9 +288,12 @@ Node 내장 `TextDecoder('euc-kr')` 는 ICU 의 EUC-KR 컨버터라 CP949 **확�
 ## 10. 개발
 
 ```bash
-npm test                                   # node --test (28개)
+npm test                                   # 단위 테스트 (DB 불필요, 가짜 Tibero 커넥션 포함)
+npm run test:integration                   # 실제 Tibero 통합 테스트 (TB_* 미설정 시 skip)
 python3 tools/gen-cp949-table.py > src/data/cp949-table.js   # 매핑 테이블 재생성
 ```
+
+테스트 DB 계정 생성, ODBC 준비, CI 설정(`TB_TEST_REQUIRED=1`)은 [docs/testing.md](docs/testing.md) 를 보세요.
 
 `src/data/cp949-table.js` 는 자동 생성 파일입니다. Python 의 `cp949` 코덱(= Microsoft codepage 949)을
 기준으로 뽑았고, 17,048개 전 문자에 대해 양방향 일치를 테스트로 검증합니다.

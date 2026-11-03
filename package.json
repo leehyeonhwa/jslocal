@@ -21,7 +21,9 @@
   ],
   "scripts": {
     "doctor": "node bin/tb-encoding-doctor.js",
-    "test": "node --test"
+    "test": "node --test test/*.test.js",
+    "test:integration": "node --test test/integration/*.test.js",
+    "test:all": "node --test test/*.test.js test/integration/*.test.js"
   },
   "optionalDependencies": {
     "odbc": "^2.4.9"
