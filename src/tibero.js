@@ -6,10 +6,14 @@
  * 설치돼 있지 않으면 오프라인 점검만 동작한다.
  */
 
+import * as tbdsn from './tbdsn.js';
+
 /** 환경변수에서 접속 정보를 읽는다. */
 export function loadConfig(env = process.env) {
   return {
     dsn: env.TB_DSN || null,
+    alias: env.TB_ALIAS || null, // tbdsn.tbr 의 별칭 (tnsnames.ora 의 TNS 별칭과 같은 역할)
+    tbdsnFile: tbdsn.findFile(env),
     driver: env.TB_DRIVER || null, // 예: '/home/tibero/tibero6/client/lib/libtbodbc.so'
     host: env.TB_HOST || null,
     port: env.TB_PORT || '8629',
@@ -29,18 +33,54 @@ export function buildConnectionString(cfg = loadConfig()) {
   if (cfg.dsn) {
     parts.push(`DSN=${cfg.dsn}`);
   } else if (cfg.driver) {
+    const target = cfg.alias && !cfg.host ? resolveAlias(cfg) : cfg;
     parts.push(`DRIVER=${cfg.driver}`);
-    if (cfg.host) parts.push(`SERVER=${cfg.host}`);
-    if (cfg.port) parts.push(`PORT=${cfg.port}`);
-    if (cfg.database) parts.push(`DB=${cfg.database}`);
+    if (target.host) parts.push(`SERVER=${target.host}`);
+    if (target.port) parts.push(`PORT=${target.port}`);
+    if (target.database) parts.push(`DB=${target.database}`);
   } else {
     throw new Error(
-      '접속 정보가 없습니다. TB_DSN 또는 TB_DRIVER + TB_HOST/TB_PORT/TB_DB 를 지정하세요.',
+      '접속 정보가 없습니다. TB_DSN 또는 TB_DRIVER + (TB_ALIAS 또는 TB_HOST/TB_PORT/TB_DB) 를 지정하세요.',
     );
   }
   if (cfg.user) parts.push(`UID=${cfg.user}`);
   if (cfg.password) parts.push(`PWD=${cfg.password}`);
   return `${parts.join(';')};`;
+}
+
+/**
+ * tbdsn.tbr 별칭을 host/port/database 로 푼다.
+ * 여러 INSTANCE(TAC) 가 있으면 첫 번째를 쓴다. ODBC 접속 문자열에는 failover 목록을
+ * 담을 수 없으므로, 이중화가 필요하면 odbc.ini DSN 쪽에서 구성해야 한다.
+ * @param {{alias: string, tbdsnFile?: string|null, tbdsn?: object}} cfg
+ *   tbdsn 에 parse 결과를 직접 넣으면 파일을 읽지 않는다(테스트용).
+ */
+export function resolveAlias(cfg) {
+  let aliases = cfg.tbdsn;
+  if (!aliases) {
+    if (!cfg.tbdsnFile) {
+      throw new Error(
+        `TB_ALIAS=${cfg.alias} 를 풀 tbdsn.tbr 을 찾지 못했습니다. ` +
+          'TB_HOME 을 설정하거나($TB_HOME/client/config/tbdsn.tbr) TB_TBDSN_FILE 로 경로를 지정하세요.',
+      );
+    }
+    aliases = tbdsn.readFile(cfg.tbdsnFile);
+  }
+  const entry = tbdsn.resolve(aliases, cfg.alias);
+  if (!entry) {
+    throw new Error(
+      `tbdsn.tbr${cfg.tbdsnFile ? `(${cfg.tbdsnFile})` : ''} 에 별칭 '${cfg.alias}' 가 없습니다. ` +
+        `정의된 별칭: ${Object.values(aliases).map((a) => a.name).join(', ') || '(없음)'}`,
+    );
+  }
+  const first = entry.instances[0];
+  if (!first?.host) throw new Error(`별칭 '${cfg.alias}' 에 INSTANCE(HOST=...) 가 없습니다.`);
+  return {
+    host: first.host,
+    port: first.port ?? '8629',
+    database: first.dbName,
+    instances: entry.instances.length,
+  };
 }
 
 /** 로그/출력용 마스킹된 접속 문자열. */

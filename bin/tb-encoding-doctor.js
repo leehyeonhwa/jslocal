@@ -14,6 +14,7 @@ import * as cp949 from '../src/cp949.js';
 import * as charsetLib from '../src/charset.js';
 import * as mojibake from '../src/mojibake.js';
 import * as tibero from '../src/tibero.js';
+import * as tbdsn from '../src/tbdsn.js';
 
 const argv = process.argv.slice(2);
 const opts = {
@@ -144,14 +145,56 @@ function checkClientEnv() {
   }
 
   const cfg = tibero.loadConfig();
+  checkTbdsn(cfg);
+
   const hasTarget = cfg.dsn || cfg.driver || cfg.connectionString;
-  add(
-    hasTarget ? 'ok' : 'info',
-    '접속 설정',
-    hasTarget
-      ? tibero.maskConnectionString(tibero.buildConnectionString(cfg))
-      : 'TB_DSN/TB_DRIVER 미설정 (--connect 불가)',
-  );
+  if (!hasTarget) {
+    add('info', '접속 설정', 'TB_DSN/TB_DRIVER 미설정 (--connect 불가)');
+    return;
+  }
+  try {
+    add('ok', '접속 설정', tibero.maskConnectionString(tibero.buildConnectionString(cfg)));
+  } catch (err) {
+    add('error', '접속 설정', err.message);
+  }
+}
+
+/** tbdsn.tbr (Tibero 의 tnsnames.ora) 점검. */
+function checkTbdsn(cfg) {
+  const file = cfg.tbdsnFile;
+  if (!file) {
+    const tried = tbdsn.candidatePaths();
+    add(
+      cfg.alias ? 'error' : 'info',
+      'tbdsn.tbr',
+      tried.length ? `없음 (${tried.join(', ')})` : '찾을 위치 없음 (TB_HOME 미설정)',
+      cfg.alias ? 'TB_ALIAS 를 쓰려면 tbdsn.tbr 이 필요합니다. TB_HOME 또는 TB_TBDSN_FILE 을 지정하세요.' : undefined,
+    );
+    return;
+  }
+
+  let aliases;
+  try {
+    aliases = tbdsn.readFile(file);
+  } catch (err) {
+    add('error', 'tbdsn.tbr', `${file}: ${err.message}`);
+    return;
+  }
+  const names = Object.values(aliases).map((a) => a.name);
+  add('ok', 'tbdsn.tbr', `${file} (별칭 ${names.length}개: ${names.join(', ') || '-'})`);
+
+  // TB_SID 는 tbsql 등 Tibero 도구가 쓰는 기본 별칭, TB_ALIAS 는 이 도구의 ODBC 접속용 별칭
+  for (const key of ['TB_SID', 'TB_ALIAS']) {
+    const alias = process.env[key];
+    if (!alias) continue;
+    const entry = tbdsn.resolve(aliases, alias);
+    if (!entry) {
+      add(key === 'TB_ALIAS' ? 'error' : 'warn', key, `${alias} - tbdsn.tbr 에 없음`, `정의된 별칭: ${names.join(', ')}`);
+      continue;
+    }
+    const where = entry.instances.map((x) => `${x.host}:${x.port ?? 8629}/${x.dbName}`).join(', ');
+    add('ok', key, `${alias} -> ${where}`);
+  }
 }
 
 function checkOfflineEncoding() {

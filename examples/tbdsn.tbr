@@ -1,0 +1,27 @@
+# tbdsn.tbr 예제 - Tibero 의 tnsnames.ora
+# 실제 위치: $TB_HOME/client/config/tbdsn.tbr
+# '#' 이후는 주석
+
+# 단일 인스턴스. 별칭(tibero) 은 tbsql scott/tiger@tibero 처럼 쓴다.
+tibero=(
+    (INSTANCE=(HOST=127.0.0.1)
+              (PT=8629)
+              (DB_NAME=tibero)
+    )
+)
+
+# 통합 테스트 전용 DB
+tibero_test=(
+    (INSTANCE=(HOST=192.168.0.20)
+              (PT=8629)
+              (DB_NAME=tbtest)
+    )
+)
+
+# TAC(클러스터) - 노드 장애 시 다음 INSTANCE 로 넘어간다
+tac=(
+    (INSTANCE=(HOST=10.0.0.1)(PT=8629)(DB_NAME=tac))
+    (INSTANCE=(HOST=10.0.0.2)(PT=8629)(DB_NAME=tac))
+    (USE_FAILOVER=Y)
+    (LOAD_BALANCE=Y)
+)

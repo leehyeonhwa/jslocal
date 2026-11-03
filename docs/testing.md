@@ -60,8 +60,14 @@ tbsql sys/<비밀번호>@tibero @test/integration/setup-test-user.sql
 
 ### 2-3. 실행
 
+ODBC DSN 대신 tbdsn.tbr 별칭으로 붙어도 됩니다. 테스트 DB 별칭(예: `tibero_test`)을 tbdsn.tbr 에 추가하고:
+
 ```bash
-cp .env.example .env      # TB_DSN / TB_USER / TB_PASSWORD / TB_NLS_LANG 수정
+export TB_DRIVER=$TB_HOME/client/lib/libtbodbc.so TB_ALIAS=tibero_test
+```
+
+```bash
+cp .env.example .env      # TB_DSN(또는 TB_DRIVER+TB_ALIAS) / TB_USER / TB_PASSWORD / TB_NLS_LANG 수정
 set -a; . ./.env; set +a
 npm run test:integration
 ```

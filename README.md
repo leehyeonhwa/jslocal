@@ -197,6 +197,40 @@ TB_DSN=TIBERO TB_USER=scott TB_PASSWORD=tiger node examples/roundtrip.js
 
 `isql -v TIBERO scott tiger` 로 먼저 ODBC 계층이 붙는지 확인하면 문제 범위를 절반으로 줄일 수 있습니다.
 
+### tbdsn.tbr — Tibero 의 tnsnames.ora
+
+Oracle 의 `tnsnames.ora` 에 해당하는 파일이 `$TB_HOME/client/config/tbdsn.tbr` 입니다.
+`tbsql scott/tiger@tibero` 의 `tibero` 가 여기 정의된 별칭입니다. 전체 예제: [examples/tbdsn.tbr](examples/tbdsn.tbr)
+
+```
+tibero=(
+    (INSTANCE=(HOST=127.0.0.1)
+              (PT=8629)
+              (DB_NAME=tibero)
+    )
+)
+```
+
+| Oracle `tnsnames.ora` | Tibero `tbdsn.tbr` |
+|---|---|
+| `$ORACLE_HOME/network/admin/tnsnames.ora` | `$TB_HOME/client/config/tbdsn.tbr` |
+| `(ADDRESS=(HOST=..)(PORT=1521))` | `(INSTANCE=(HOST=..)(PT=8629)` |
+| `(CONNECT_DATA=(SERVICE_NAME=orcl))` | `(DB_NAME=tibero))` |
+| `ADDRESS_LIST` + `FAILOVER=ON` | `INSTANCE` 여러 개 + `(USE_FAILOVER=Y)` |
+| `TWO_TASK` / `ORACLE_SID` | `TB_SID` (tbsql 등이 쓰는 기본 별칭) |
+
+이 도구에서는 DSN 없이 별칭으로 붙을 수 있습니다. 별칭을 tbdsn.tbr 에서 찾아 `SERVER/PORT/DB` 로 풀어 넣습니다.
+
+```bash
+export TB_HOME=/home/tibero/tibero6
+TB_DRIVER=$TB_HOME/client/lib/libtbodbc.so TB_ALIAS=tibero TB_USER=scott TB_PASSWORD=tiger \
+  node bin/tb-encoding-doctor.js --connect
+```
+
+- 다른 위치의 파일은 `TB_TBDSN_FILE=/path/to/tbdsn.tbr`. `TB_HOST` 를 주면 별칭보다 우선합니다.
+- 여러 `INSTANCE`(TAC) 별칭은 **첫 번째 INSTANCE** 로 붙습니다. ODBC 접속 문자열에는 failover 목록을 담을 수 없으니 이중화가 필요하면 DSN 쪽에서 구성하세요.
+- `node bin/tb-encoding-doctor.js` 가 tbdsn.tbr 위치, 파싱 결과, `TB_SID`/`TB_ALIAS` 별칭 존재 여부를 점검합니다.
+
 ### 코드에서 지킬 것 하나
 
 **문자열은 SQL 에 이어붙이지 말고 바인드 변수로 넘깁니다.**
@@ -226,7 +260,7 @@ jdbc:tibero:thin:@호스트:8629:SID
 ## 8. API
 
 ```js
-import { cp949, charset, mojibake, tibero } from './src/index.js';
+import { cp949, charset, mojibake, tibero, tbdsn } from './src/index.js';
 ```
 
 ### `cp949` — MSWIN949 변환 (외부 의존성 없음)
@@ -264,11 +298,21 @@ Node 내장 `TextDecoder('euc-kr')` 는 ICU 의 EUC-KR 컨버터라 CP949 **확�
 변환을 3단계까지 조합해 탐색하므로 이중 인코딩도 복구합니다.
 단, `�` (U+FFFD)가 박힌 문자열은 그 시점에 원본 바이트가 사라진 것이라 복구할 수 없습니다.
 
+### `tbdsn` — tbdsn.tbr 파서
+
+| 함수 | 설명 |
+|---|---|
+| `findFile(env)` / `candidatePaths(env)` | `TB_TBDSN_FILE`, `$TB_HOME/client/config/tbdsn.tbr` 순으로 탐색 |
+| `parse(text)` / `readFile(path)` | 별칭 → `{name, instances:[{host, port, dbName}], options}` |
+| `resolve(aliases, alias)` | 대소문자 무시 조회 |
+| `format(entry)` | 별칭 하나를 tbdsn.tbr 형식으로 |
+
 ### `tibero` — 접속과 왕복 검증
 
 | 함수 | 설명 |
 |---|---|
-| `loadConfig(env)` / `buildConnectionString(cfg)` | `TB_*` 환경변수 → 접속 문자열 |
+| `loadConfig(env)` / `buildConnectionString(cfg)` | `TB_*` 환경변수 → 접속 문자열 (`TB_ALIAS` 는 tbdsn.tbr 로 풂) |
+| `resolveAlias(cfg)` | tbdsn.tbr 별칭 → `{host, port, database}` |
 | `maskConnectionString(s)` | 로그용 비밀번호 마스킹 |
 | `connect(cfg)` | `odbc` 커넥션 (호출자가 `close()`) |
 | `readServerNls(conn)` / `pickDatabaseCharset(params)` | 서버 NLS 조회 |
